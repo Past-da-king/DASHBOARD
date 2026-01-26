@@ -1,0 +1,194 @@
+import sqlite3
+import pandas as pd
+import os
+
+DB_PATH = os.path.join(os.path.dirname(__file__), 'pm_tool.db')
+
+def get_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def execute_query(query, params=(), commit=False):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        if commit:
+            conn.commit()
+            return cursor.lastrowid
+        return cursor.fetchall()
+
+def get_df(query, params=()):
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn, params=params)
+
+def log_change(table_name, record_id, action, old_val, new_val, user_id):
+    query = '''
+    INSERT INTO audit_log (table_name, record_id, action, old_value, new_value, changed_by)
+    VALUES (?, ?, ?, ?, ?, ?)
+    '''
+    execute_query(query, (table_name, record_id, action, str(old_val), str(new_val), user_id), commit=True)
+
+# User Management
+def get_user_by_username(username):
+    res = execute_query("SELECT * FROM users WHERE username = ?", (username,))
+    return res[0] if res else None
+
+def create_user(data):
+    query = '''
+    INSERT INTO users (username, password_hash, role, full_name, status)
+    VALUES (?, ?, ?, ?, ?)
+    '''
+    params = (data['username'], data['password_hash'], data['role'], data['full_name'], data.get('status', 'approved'))
+    return execute_query(query, params, commit=True)
+
+def update_user_status(user_id, new_status):
+    query = "UPDATE users SET status = ? WHERE user_id = ?"
+    execute_query(query, (new_status, user_id), commit=True)
+
+def update_user_role(user_id, new_role):
+    query = "UPDATE users SET role = ? WHERE user_id = ?"
+    execute_query(query, (new_role, user_id), commit=True)
+
+def get_pending_users_count():
+    res = execute_query("SELECT COUNT(*) as cnt FROM users WHERE status = 'pending'")
+    return res[0]['cnt'] if res else 0
+
+def get_all_users():
+    return get_df("SELECT * FROM users")
+
+def delete_user(user_id):
+    # Cascade delete is not set in SQLite by default usually unless enabled, 
+    # so we manually cleanup to be safe
+    execute_query("DELETE FROM project_assignments WHERE user_id = ?", (user_id,), commit=True)
+    execute_query("DELETE FROM users WHERE user_id = ?", (user_id,), commit=True)
+
+# Project Assignment
+def assign_user_to_project(project_id, user_id, role, assigned_by):
+    query = '''
+    INSERT OR REPLACE INTO project_assignments (project_id, user_id, assigned_role, assigned_by)
+    VALUES (?, ?, ?, ?)
+    '''
+    execute_query(query, (project_id, user_id, role, assigned_by), commit=True)
+
+def remove_user_from_project(project_id, user_id):
+    execute_query("DELETE FROM project_assignments WHERE project_id = ? AND user_id = ?", (project_id, user_id), commit=True)
+
+def get_project_assignments(project_id):
+    return get_df('''
+        SELECT pa.*, u.full_name, u.username 
+        FROM project_assignments pa
+        JOIN users u ON pa.user_id = u.user_id
+        WHERE pa.project_id = ?
+    ''', (project_id,))
+
+# Project Management
+def create_project(data, user_id):
+    query = '''
+    INSERT INTO projects (project_name, project_number, client, pm_user_id, total_budget, start_date, target_end_date, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    '''
+    params = (
+        data['project_name'], data['project_number'], data.get('client'),
+        data.get('pm_user_id'), data['total_budget'], data['start_date'],
+        data['target_end_date'], user_id
+    )
+    project_id = execute_query(query, params, commit=True)
+    log_change('projects', project_id, 'INSERT', None, data, user_id)
+    return project_id
+
+def update_project_pm(project_id, new_pm_id, changed_by):
+    # 1. Update Project Table
+    execute_query("UPDATE projects SET pm_user_id = ? WHERE project_id = ?", (new_pm_id, project_id), commit=True)
+    
+    # 2. Update Assignments: Ensure new PM is in the assignment list as 'pm'
+    # We remove the old PM role assignment first to avoid conflicts if they stay on team? 
+    # Actually, let's just Upsert the new PM. The old PM might remain as a leftover 'pm' role in assignments unless we clear it.
+    # Logic: Delete any 'pm' role assignment for this project, then insert new one.
+    execute_query("DELETE FROM project_assignments WHERE project_id = ? AND assigned_role = 'pm'", (project_id,), commit=True)
+    assign_user_to_project(project_id, new_pm_id, 'pm', changed_by)
+
+def get_projects(pm_id=None, user_id=None):
+    if user_id:
+        # Fetch projects if user is OWNER (pm_user_id) OR ASSIGNED (project_assignments)
+        query = '''
+        SELECT DISTINCT p.* 
+        FROM projects p
+        LEFT JOIN project_assignments pa ON p.project_id = pa.project_id
+        WHERE p.pm_user_id = ? OR pa.user_id = ?
+        '''
+        return get_df(query, (user_id, user_id))
+    elif pm_id:
+        return get_df("SELECT * FROM projects WHERE pm_user_id = ?", (pm_id,))
+    return get_df("SELECT * FROM projects")
+
+# Activity Management
+def update_activity_status(activity_id, new_status, user_id):
+    """
+    Updates the status of an activity in baseline_schedule.
+    Checks dependencies: An activity cannot be STARTED or COMPLETED unless its 
+    predecessor is COMPLETED.
+    """
+    # 1. Check current activity and its dependency
+    current_act = execute_query("SELECT * FROM baseline_schedule WHERE activity_id = ?", (activity_id,))
+    if not current_act:
+        return False, "Activity not found."
+    
+    current_act = current_act[0]
+    dep_id = current_act['depends_on']
+    
+    # 2. Validation Logic
+    if new_status in ['Active', 'Complete'] and dep_id:
+        dep_act = execute_query("SELECT status FROM baseline_schedule WHERE activity_id = ?", (dep_id,))
+        if dep_act and dep_act[0]['status'] != 'Complete':
+            dep_name = execute_query("SELECT activity_name FROM baseline_schedule WHERE activity_id = ?", (dep_id,))[0]['activity_name']
+            return False, f"Cannot progress. Predecessor '{dep_name}' must be 'Complete' first."
+
+    # 3. Update Status
+    query = "UPDATE baseline_schedule SET status = ? WHERE activity_id = ?"
+    execute_query(query, (new_status, activity_id), commit=True)
+    
+    # 4. Log the event for history
+    event_type = "STARTED" if new_status == "Active" else ("FINISHED" if new_status == "Complete" else "RESET")
+    query_log = '''
+    INSERT INTO activity_log (activity_id, event_type, event_date, recorded_by)
+    VALUES (?, ?, date('now'), ?)
+    '''
+    execute_query(query_log, (activity_id, event_type, user_id), commit=True)
+    
+    return True, f"Status updated to {new_status}."
+
+def update_activity_log(activity_id, event_type, event_date, user_id):
+    # Keep for backward compatibility if needed, but we prefer update_activity_status
+    query = '''
+    INSERT INTO activity_log (activity_id, event_type, event_date, recorded_by)
+    VALUES (?, ?, ?, ?)
+    '''
+    log_id = execute_query(query, (activity_id, event_type, event_date, user_id), commit=True)
+    return log_id
+
+# Expenditure Management
+def add_expenditure(data, user_id):
+    query = '''
+    INSERT INTO expenditure_log (project_id, activity_id, category, description, reference_id, amount, spend_date, recorded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    '''
+    params = (
+        data['project_id'], data.get('activity_id'), data['category'],
+        data.get('description'), data['reference_id'], data['amount'],
+        data['spend_date'], user_id
+    )
+    exp_id = execute_query(query, params, commit=True)
+    return exp_id
+
+# Baseline Schedule
+def add_baseline_activity(data):
+    query = '''
+    INSERT INTO baseline_schedule (project_id, activity_name, planned_start, planned_finish, budgeted_cost)
+    VALUES (?, ?, ?, ?, ?)
+    '''
+    params = (data['project_id'], data['activity_name'], data['planned_start'], data['planned_finish'], data['budgeted_cost'])
+    return execute_query(query, params, commit=True)
+
+def get_baseline_schedule(project_id):
+    return get_df("SELECT * FROM baseline_schedule WHERE project_id = ? ORDER BY planned_start", (project_id,))
