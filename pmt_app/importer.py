@@ -77,4 +77,21 @@ def import_project(file, user_id):
         }
         database.add_expenditure(data, user_id)
         
+    # 4. Parse Risk Register
+    if "Risk_Register" in xl.sheet_names:
+        df_risk = pd.read_excel(xl, "Risk_Register", skiprows=2)
+        # Drop rows where 'Risk/Issue Description' is NaN
+        df_risk = df_risk.dropna(subset=['Risk/Issue Description'])
+        
+        for _, row in df_risk.iterrows():
+            risk_data = {
+                'project_id': project_id,
+                'date_identified': str(row['Date Identified'])[:10] if pd.notna(row['Date Identified']) else None,
+                'description': row['Risk/Issue Description'],
+                'impact': str(row['Impact (H/M/L)']).upper() if pd.notna(row['Impact (H/M/L)']) else 'M',
+                'status': row['Status'] if pd.notna(row['Status']) else 'Open',
+                'mitigation_action': row['Mitigation Action'] if pd.notna(row['Mitigation Action']) else None
+            }
+            database.add_risk(risk_data, user_id)
+
     return project_id

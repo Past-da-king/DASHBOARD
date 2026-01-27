@@ -82,7 +82,7 @@ def exec_dashboard():
         st.stop()
         
     # Custom Metric Layout
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     
     with m1:
         st.markdown(f"""
@@ -117,6 +117,17 @@ def exec_dashboard():
         <div class="metric-container">
             <div class="metric-label">Net Margin</div>
             <div class="metric-value {delta_class}">{margin:.1f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with m5:
+        # Fetch Critical Risks (Global)
+        crit_risks = database.get_df("SELECT COUNT(*) as cnt FROM risks WHERE impact = 'H' AND status = 'Open'")[0]['cnt']
+        crit_class = "negative" if crit_risks > 0 else "positive"
+        st.markdown(f"""
+        <div class="metric-container">
+            <div class="metric-label">Critical Risks</div>
+            <div class="metric-value {crit_class}">{crit_risks}</div>
         </div>
         """, unsafe_allow_html=True)
 

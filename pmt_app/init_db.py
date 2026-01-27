@@ -126,6 +126,23 @@ def init_db():
     )
     ''')
 
+    # 8. Risks & Issues Table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS risks (
+        risk_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        date_identified DATE,
+        description TEXT NOT NULL,
+        impact TEXT, -- H/M/L
+        status TEXT DEFAULT 'Open',
+        mitigation_action TEXT,
+        recorded_by INTEGER,
+        recorded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects (project_id),
+        FOREIGN KEY (recorded_by) REFERENCES users (user_id)
+    )
+    ''')
+
     # Seed Admin User
     admin_pw = generate_password_hash('admin123')
     cursor.execute('''

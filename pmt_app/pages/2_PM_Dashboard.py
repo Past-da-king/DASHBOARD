@@ -42,6 +42,11 @@ def pm_dashboard():
         'cat_diesel': '#059669',   # Lush Green
         'cat_other': '#94a3b8',    # Cool Gray
         
+        # 4. Risk Impact
+        'risk_high': '#f44336',    # Red
+        'risk_medium': '#ff9800',  # Orange
+        'risk_low': '#4caf50',     # Green
+
         'text': '#1a1a1a',
         'subtext': '#64748b',
         'card_bg': '#ffffff'
@@ -502,6 +507,97 @@ def pm_dashboard():
             st.markdown(ms_html, unsafe_allow_html=True)
         else:
             st.info("No milestones defined.")
+
+    st.markdown('<div style="height:30px"></div>', unsafe_allow_html=True)
+    
+    # --- ROW 4: RISKS & ISSUES (Restyled) ---
+    st.markdown("### Risks & Issues")
+    
+    risks = database.get_project_risks(project_id)
+    
+    if not risks.empty:
+        r4_col1, r4_col2 = st.columns([2, 1])
+        
+        with r4_col1:
+            # Compact Risk List (Matching Milestones Style)
+            risk_html = '<div style="background-color: white; padding: 15px; border-radius: 12px; border: 1px solid #eee; box-shadow: 0 2px 5px rgba(0,0,0,0.02);">'
+            
+            for _, row in risks.iterrows():
+                # Color Coding
+                impact_code = row['impact']
+                impact_color = COLORS['risk_high'] if impact_code == 'H' else (COLORS['risk_medium'] if impact_code == 'M' else COLORS['risk_low'])
+                status_icon = "⚠️" if impact_code == 'H' else ("❗" if impact_code == 'M' else "✓")
+                
+                risk_html += f"""
+<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f0f0f0; padding:12px 0;">
+    <div style="flex:1; padding-right:10px;">
+        <span style="font-weight:500; font-size:0.9rem; color:{COLORS["text"]}; display:block;">{row["description"]}</span>
+        <span style="font-size:0.75rem; color:{COLORS["subtext"]};">Plan: {row['mitigation_action'] or 'None'}</span>
+    </div>
+    <div style="text-align:right; min-width:80px;">
+        <span style="display:block; font-size:0.75rem; color:{COLORS["subtext"]};">{row["date_identified"]}</span>
+        <span style="display:block; font-size:0.8rem; color:{impact_color}; font-weight:600;">{status_icon} {impact_code}-Impact</span>
+    </div>
+</div>
+"""
+            risk_html += '</div>'
+            st.markdown(risk_html, unsafe_allow_html=True)
+            
+        with r4_col2:
+            # Risk Summary Cards (Matching KPI Card Style but Mini)
+            high_risks = len(risks[risks['impact'] == 'H'])
+            open_risks = len(risks[risks['status'] == 'Open'])
+            
+            # Mini Cards Row
+            mc1, mc2 = st.columns(2)
+            
+            with mc1:
+                st.markdown(f"""
+<div class="kpi-card" style="border-left-color: {COLORS['risk_medium'] if open_risks > 0 else COLORS['risk_low']}; padding: 10px; margin-bottom: 0;">
+    <div class="kpi-value" style="font-size: 1.4rem; color: {COLORS['risk_medium'] if open_risks > 0 else COLORS['risk_low']} !important;">{open_risks}</div>
+    <div class="kpi-label" style="font-size: 0.7rem;">Active</div>
+</div>
+""", unsafe_allow_html=True)
+
+            with mc2:
+                crit_color = COLORS['risk_high'] if high_risks > 0 else COLORS['risk_low']
+                st.markdown(f"""
+<div class="kpi-card" style="border-left-color: {crit_color}; padding: 10px;">
+    <div class="kpi-value" style="font-size: 1.4rem; color: {crit_color} !important;">{high_risks}</div>
+    <div class="kpi-label" style="font-size: 0.7rem;">Critical</div>
+</div>
+""", unsafe_allow_html=True)
+            
+            st.markdown('<div style="height:20px"></div>', unsafe_allow_html=True)
+            
+            st.markdown('<div style="height:15px"></div>', unsafe_allow_html=True)
+            
+            # 3. Stacked Progress Bar (Risk Composition)
+            if not risks.empty:
+                total_risks = len(risks)
+                high_pct = (len(risks[risks['impact'] == 'H']) / total_risks) * 100
+                med_pct = (len(risks[risks['impact'] == 'M']) / total_risks) * 100
+                low_pct = (len(risks[risks['impact'] == 'L']) / total_risks) * 100
+                
+                # HTML Stacked Bar
+                st.markdown(f"""
+                <div style="margin-top: 5px;">
+                    <div style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px; font-weight: 600; text-transform: uppercase;">Risk Distribution</div>
+                    <div style="display: flex; height: 8px; width: 100%; background-color: #f1f5f9; border-radius: 4px; overflow: hidden;">
+                        <div style="width: {high_pct}%; background-color: {COLORS['risk_high']};" title="{high_pct:.0f}% High Impact"></div>
+                        <div style="width: {med_pct}%; background-color: {COLORS['risk_medium']};" title="{med_pct:.0f}% Medium Impact"></div>
+                        <div style="width: {low_pct}%; background-color: {COLORS['risk_low']};" title="{low_pct:.0f}% Low Impact"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 4px; font-size: 0.7rem; color: #94a3b8;">
+                        <span>High ({int(high_pct)}%)</span>
+                        <span>Medium ({int(med_pct)}%)</span>
+                        <span>Low ({int(low_pct)}%)</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    else:
+        st.info("✅ No risks or issues identified for this project.")
 
 if __name__ == "__main__":
     pm_dashboard()

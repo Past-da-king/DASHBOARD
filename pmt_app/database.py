@@ -192,3 +192,17 @@ def add_baseline_activity(data):
 
 def get_baseline_schedule(project_id):
     return get_df("SELECT * FROM baseline_schedule WHERE project_id = ? ORDER BY planned_start", (project_id,))
+# Risk Management
+def get_project_risks(project_id):
+    return get_df("SELECT * FROM risks WHERE project_id = ? ORDER BY date_identified DESC", (project_id,))
+
+def add_risk(data, user_id):
+    query = '''
+    INSERT INTO risks (project_id, date_identified, description, impact, status, mitigation_action, recorded_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    '''
+    params = (
+        data['project_id'], data.get('date_identified'), data['description'],
+        data.get('impact'), data.get('status', 'Open'), data.get('mitigation_action'), user_id
+    )
+    return execute_query(query, params, commit=True)
