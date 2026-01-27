@@ -510,8 +510,8 @@ def pm_dashboard():
 
     st.markdown('<div style="height:30px"></div>', unsafe_allow_html=True)
     
-    # --- ROW 4: RISKS & ISSUES (Restyled) ---
-    st.markdown("### Risks & Issues")
+    # --- ROW 4: Risk Register (Restyled) ---
+    st.markdown("### Risk Register")
     
     risks = database.get_project_risks(project_id)
     

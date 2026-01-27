@@ -206,3 +206,7 @@ def add_risk(data, user_id):
         data.get('impact'), data.get('status', 'Open'), data.get('mitigation_action'), user_id
     )
     return execute_query(query, params, commit=True)
+
+def update_risk_status(risk_id, new_status, user_id):
+    query = "UPDATE risks SET status = ?, recorded_by = ? WHERE risk_id = ?"
+    return execute_query(query, (new_status, user_id, risk_id), commit=True)
