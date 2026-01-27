@@ -122,7 +122,7 @@ def exec_dashboard():
 
     with m5:
         # Fetch Critical Risks (Global)
-        crit_risks = database.get_df("SELECT COUNT(*) as cnt FROM risks WHERE impact = 'H' AND status = 'Open'")[0]['cnt']
+        crit_risks = database.get_df("SELECT COUNT(*) as cnt FROM risks WHERE impact = 'H' AND status = 'Open'").iloc[0]['cnt']
         crit_class = "negative" if crit_risks > 0 else "positive"
         st.markdown(f"""
         <div class="metric-container">
