@@ -142,6 +142,7 @@ def main():
         pm_dash = st.Page("pages/2_PM_Dashboard.py", title="Project Dashboard", icon="📈")
         setup = st.Page("pages/3_Project_Setup.py", title="Project Setup", icon="🏗️")
         rec_act = st.Page("pages/4_Record_Activity.py", title="Log Progress", icon="📝")
+        risk_reg = st.Page("pages/5_Risk_Register.py", title="Risk Register", icon="⚠️")
         rec_exp = st.Page("pages/5_Record_Expenditure.py", title="Log Expenditure", icon="💰")
         
         # Admin Page with Dynamic Title
@@ -173,13 +174,13 @@ def main():
         # Only Approved users see other pages
         if status == 'approved':
             if role == 'admin':
-                pages += [exe_dash, pm_dash, setup, admin_page]
+                pages += [exe_dash, pm_dash, risk_reg, setup, admin_page]
             elif role == 'executive':
-                pages += [exe_dash, pm_dash]
+                pages += [exe_dash, pm_dash, risk_reg]
             elif role == 'pm':
-                pages += [pm_dash, setup, rec_act, rec_exp]
+                pages += [pm_dash, setup, rec_act, risk_reg, rec_exp]
             elif role == 'recorder':
-                pages += [rec_act, rec_exp]
+                pages += [rec_act, risk_reg, rec_exp]
 
         # 4. Initialize Navigation
         pg = st.navigation(pages)
