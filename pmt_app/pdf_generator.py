@@ -22,14 +22,23 @@ plt.style.use('seaborn-v0_8-whitegrid')
 sns.set_palette("deep")
 
 # --- BRAND COLORS ---
-PRIMARY_COLOR = colors.HexColor('#2c5aa0')
-SECONDARY_COLOR = colors.HexColor('#5fa2e8')
-ACCENT_COLOR = colors.HexColor('#ffc107')
-SUCCESS_COLOR = colors.HexColor('#4caf50')
-DANGER_COLOR = colors.HexColor('#f44336')
-TEXT_COLOR = colors.HexColor('#333333')
-LIGHT_BG = colors.HexColor('#f8f9fa')
-GRAY_LINE = colors.HexColor('#e0e0e0')
+PRIMARY_HEX = '#2c5aa0'
+SECONDARY_HEX = '#5fa2e8'
+ACCENT_HEX = '#ffc107'
+SUCCESS_HEX = '#4caf50'
+DANGER_HEX = '#f44336'
+TEXT_HEX = '#333333'
+LIGHT_BG_HEX = '#f8f9fa'
+GRAY_LINE_HEX = '#e0e0e0'
+
+PRIMARY_COLOR = colors.HexColor(PRIMARY_HEX)
+SECONDARY_COLOR = colors.HexColor(SECONDARY_HEX)
+ACCENT_COLOR = colors.HexColor(ACCENT_HEX)
+SUCCESS_COLOR = colors.HexColor(SUCCESS_HEX)
+DANGER_COLOR = colors.HexColor(DANGER_HEX)
+TEXT_COLOR = colors.HexColor(TEXT_HEX)
+LIGHT_BG = colors.HexColor(LIGHT_BG_HEX)
+GRAY_LINE = colors.HexColor(GRAY_LINE_HEX)
 
 class PDFReportGenerator:
     def __init__(self, project_id):
@@ -194,7 +203,7 @@ class PDFReportGenerator:
         ]
         
         # Clean minimalist bars
-        bars = plt.bar(categories, values, color=[PRIMARY_COLOR.hexval(), '#7c3aed', '#0891b2'], 
+        bars = plt.bar(categories, values, color=[PRIMARY_HEX, '#7c3aed', '#0891b2'], 
                       width=0.5, edgecolor='none')
         
         # Remove frames
@@ -257,7 +266,7 @@ class PDFReportGenerator:
         # Background
         plt.barh([0], [100], color='#f1f3f5', height=0.6, edgecolor='none', align='center')
         # Progress
-        plt.barh([0], [progress], color=SUCCESS_COLOR.hexval(), height=0.6, edgecolor='none', align='center')
+        plt.barh([0], [progress], color=SUCCESS_HEX, height=0.6, edgecolor='none', align='center')
         
         plt.xlim(0, 100)
         plt.axis('off')
