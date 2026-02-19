@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 import os
 import styles
+import pdf_generator
 
 # Page Config
 st.set_page_config(
@@ -163,8 +164,25 @@ def pm_dashboard():
         
         st.markdown("---")
         selected_project_str = st.selectbox("Select Project", project_list, index=default_idx)
-    
-    project_id = project_map[selected_project_str]
+        
+        # PDF EXPORT
+        project_id = project_map[selected_project_str]
+        st.markdown("### Reports")
+        if st.button("Generate PDF Report", use_container_width=True):
+            with st.spinner("Generating PDF..."):
+                try:
+                    pdf_gen = pdf_generator.PDFReportGenerator(project_id)
+                    pdf_bytes = pdf_gen.generate()
+                    st.download_button(
+                        label="📥 Download PDF",
+                        data=pdf_bytes,
+                        file_name=f"Project_Status_{project_id}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                    st.success("Report generated!")
+                except Exception as e:
+                    st.error(f"Failed to generate PDF: {e}")
     
     # 1. Metrics Calculation
     m = calculations.get_project_metrics(project_id)
