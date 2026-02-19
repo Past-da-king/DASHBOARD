@@ -354,7 +354,7 @@ class PDFReportGenerator:
         ]))
         
         # Push stats to right
-        t_stats_container = Table([[None, t_stats]], colWidths=[2.5*inch, 5.5*inch])
+        t_stats_container = Table([[None, t_stats]], colWidths=[3.5*inch, 5.5*inch])
         story.append(t_stats_container)
         
         story.append(NextPageTemplate('report_page'))
