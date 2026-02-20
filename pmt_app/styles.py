@@ -1,7 +1,10 @@
 import streamlit as st
 
+
 def global_css():
-    st.markdown("""
+    st.markdown(
+        """
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         /* --- GLOBAL THEME --- */
         :root {
@@ -106,5 +109,44 @@ def global_css():
             color: var(--subtext-color);
             font-weight: 500;
         }
+
+        /* Icon Styles */
+        .icon-btn {
+            margin-right: 8px;
+        }
+        .icon-success { color: #4caf50; }
+        .icon-warning { color: #ffc107; }
+        .icon-danger { color: #f44336; }
+        .icon-info { color: #2196f3; }
+        .icon-primary { color: #2c5aa0; }
+        
+        /* Icon in buttons */
+        .stButton > button i {
+            margin-right: 6px;
+        }
+        
+        /* Section icons */
+        .section-icon {
+            margin-right: 10px;
+            color: var(--primary-color);
+        }
+        
+        /* Export Button */
+        .export-btn {
+            background: linear-gradient(90deg, #4caf50 0%, #2e7d32 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .export-btn:hover {
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            transform: translateY(-2px);
+        }
     </style>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
