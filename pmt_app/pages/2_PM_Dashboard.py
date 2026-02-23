@@ -527,8 +527,151 @@ def pm_dashboard():
             st.info("No milestones defined.")
 
     st.markdown('<div style="height:30px"></div>', unsafe_allow_html=True)
-    
-    # --- ROW 4: Risk Register (Restyled) ---
+
+    # --- ROW 4: BUDGET BURNDOWN CHART ---
+    st.markdown("### 📉 Budget Burndown")
+
+    bd = calculations.get_burndown_data(project_id)
+
+    if bd:
+        # Status callout
+        status_styles = {
+            "On Track":   (COLORS['status_active'],   "✅"),
+            "At Risk":    (COLORS['status_not_started'], "⚠️"),
+            "Over Budget":(COLORS['status_critical'], "🔴"),
+            "No Data":    (COLORS['subtext'],          "ℹ️"),
+        }
+        bd_status = bd["status"]
+        stat_color, stat_icon = status_styles.get(bd_status, (COLORS['subtext'], "ℹ️"))
+
+        burn_col1, burn_col2, burn_col3 = st.columns([1, 1, 1])
+        with burn_col1:
+            end_str = bd["end_date"].strftime("%d %b %Y") if bd["end_date"] else "N/A"
+            st.markdown(
+                f'<div class="kpi-card"><div class="kpi-value" style="font-size:1.3rem;">R {bd["total_budget"]:,.0f}</div>'
+                f'<div class="kpi-label">Total Budget</div></div>',
+                unsafe_allow_html=True,
+            )
+        with burn_col2:
+            days_rem = max((bd["end_date"] - bd["today"]).days, 0) if bd["end_date"] else 0
+            st.markdown(
+                f'<div class="kpi-card" style="border-left-color:{COLORS["fin_forecast"]}">'
+                f'<div class="kpi-value" style="font-size:1.3rem; color:{COLORS["fin_forecast"]} !important;">{days_rem}</div>'
+                f'<div class="kpi-label">Days Remaining</div></div>',
+                unsafe_allow_html=True,
+            )
+        with burn_col3:
+            st.markdown(
+                f'<div class="kpi-card" style="border-left-color:{stat_color}">'
+                f'<div class="kpi-value" style="font-size:1.1rem; color:{stat_color} !important;">{stat_icon} {bd_status}</div>'
+                f'<div class="kpi-label">Budget Status</div></div>',
+                unsafe_allow_html=True,
+            )
+
+        st.markdown('<div style="height:15px"></div>', unsafe_allow_html=True)
+
+        # Build the Plotly chart
+        bd_fig = go.Figure()
+
+        # 1. Ideal burndown (dashed gray)
+        if not bd["ideal_df"].empty:
+            bd_fig.add_trace(go.Scatter(
+                x=bd["ideal_df"]["date"],
+                y=bd["ideal_df"]["remaining"],
+                mode="lines",
+                name="Ideal Burndown",
+                line=dict(color="#94a3b8", width=2, dash="dash"),
+                hovertemplate="<b>Ideal</b><br>%{x|%d %b %Y}<br>Remaining: R %{y:,.0f}<extra></extra>",
+            ))
+
+        # 2. Actual remaining (solid primary blue)
+        if not bd["actual_df"].empty:
+            bd_fig.add_trace(go.Scatter(
+                x=bd["actual_df"]["date"],
+                y=bd["actual_df"]["remaining"],
+                mode="lines+markers",
+                name="Actual Remaining",
+                line=dict(color=COLORS['fin_actual'], width=3),
+                marker=dict(size=6, color=COLORS['fin_actual']),
+                hovertemplate="<b>Actual</b><br>%{x|%d %b %Y}<br>Remaining: R %{y:,.0f}<extra></extra>",
+                fill="tozeroy",
+                fillcolor="rgba(8, 145, 178, 0.08)",
+            ))
+
+        # 3. Forecast line (dotted red)
+        if not bd["forecast_df"].empty:
+            bd_fig.add_trace(go.Scatter(
+                x=bd["forecast_df"]["date"],
+                y=bd["forecast_df"]["remaining"],
+                mode="lines",
+                name="Forecast",
+                line=dict(color=COLORS['status_critical'], width=2, dash="dot"),
+                hovertemplate="<b>Forecast</b><br>%{x|%d %b %Y}<br>Remaining: R %{y:,.0f}<extra></extra>",
+            ))
+
+        # 4. Today vertical line
+        today_ts = bd["today"]
+        bd_fig.add_vline(
+            x=today_ts.timestamp() * 1000,  # Plotly expects ms since epoch for datetime axes
+            line_width=1.5,
+            line_dash="dot",
+            line_color=COLORS['fin_forecast'],
+            annotation_text="Today",
+            annotation_position="top right",
+            annotation_font=dict(color=COLORS['fin_forecast'], size=11),
+        )
+
+        # 5. Zero-budget reference line
+        bd_fig.add_hline(
+            y=0,
+            line_width=1,
+            line_dash="solid",
+            line_color=COLORS['status_critical'],
+            opacity=0.4,
+        )
+
+        bd_fig.update_layout(
+            height=340,
+            margin=dict(l=0, r=0, t=10, b=0),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="white",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                font=dict(size=12),
+            ),
+            xaxis=dict(
+                title="",
+                showgrid=True,
+                gridcolor="#f0f0f0",
+                tickformat="%b %Y",
+                tickfont=dict(size=11, color=COLORS['subtext']),
+            ),
+            yaxis=dict(
+                title="Remaining Budget (R)",
+                showgrid=True,
+                gridcolor="#f0f0f0",
+                tickformat=",.0f",
+                tickprefix="R ",
+                tickfont=dict(size=11, color=COLORS['subtext']),
+                rangemode="tozero",
+            ),
+            hovermode="x unified",
+        )
+
+        st.plotly_chart(bd_fig, use_container_width=True, config={"displayModeBar": False})
+
+        if bd["actual_df"].empty:
+            st.info("ℹ️ No expenditure recorded yet — showing the ideal burndown baseline only.")
+    else:
+        st.warning("⚠️ Could not load project dates or budget to render the burndown chart.")
+
+    st.markdown('<div style="height:30px"></div>', unsafe_allow_html=True)
+
+    # --- ROW 5: Risk Register (Restyled) ---
     st.markdown("### Risk Register")
     
     risks = database.get_project_risks(project_id)

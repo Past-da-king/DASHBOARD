@@ -246,3 +246,125 @@ def get_all_projects_summary():
     except Exception as e:
         logger.error(f"Error generating projects summary: {e}")
         return pd.DataFrame()
+
+
+def get_burndown_data(project_id):
+    """
+    Builds three series for a Cost Burndown Chart:
+      - ideal:  straight-line remaining budget from start_date to target_end_date
+      - actual: cumulative remaining budget based on real expenditure dates
+      - forecast: linear projection of actual spending into the future
+
+    Returns a dict with keys:
+      'ideal_df'     – pd.DataFrame(columns=['date', 'remaining'])
+      'actual_df'    – pd.DataFrame(columns=['date', 'remaining'])
+      'forecast_df'  – pd.DataFrame(columns=['date', 'remaining'])   (empty if not enough data)
+      'total_budget' – float
+      'start_date'   – pd.Timestamp | None
+      'end_date'     – pd.Timestamp | None
+      'today'        – pd.Timestamp
+      'status'       – 'On Track' | 'At Risk' | 'Over Budget' | 'No Data'
+    """
+    try:
+        project_df = database.get_df(
+            "SELECT total_budget, start_date, target_end_date FROM projects WHERE project_id = ?",
+            (project_id,),
+        )
+        if project_df is None or project_df.empty:
+            return None
+
+        row = project_df.iloc[0]
+        total_budget = float(row["total_budget"]) if pd.notna(row["total_budget"]) else 0.0
+        start_date = pd.to_datetime(row["start_date"]) if pd.notna(row["start_date"]) else None
+        end_date = pd.to_datetime(row["target_end_date"]) if pd.notna(row["target_end_date"]) else None
+        today = pd.Timestamp.now().normalize()  # midnight today
+
+        # ── 1. Ideal burndown (perfect straight line) ───────────────────────────
+        if start_date and end_date and total_budget > 0:
+            duration_days = max((end_date - start_date).days, 1)
+            date_range = pd.date_range(start=start_date, end=end_date, freq="D")
+            remaining_ideal = [
+                total_budget - total_budget * (i / duration_days)
+                for i in range(len(date_range))
+            ]
+            ideal_df = pd.DataFrame({"date": date_range, "remaining": remaining_ideal})
+        else:
+            ideal_df = pd.DataFrame(columns=["date", "remaining"])
+
+        # ── 2. Actual cumulative spending → remaining budget ────────────────────
+        exp_df = database.get_df(
+            """
+            SELECT spend_date, SUM(amount) as daily_spend
+            FROM expenditure_log
+            WHERE project_id = ?
+            GROUP BY spend_date
+            ORDER BY spend_date
+            """,
+            (project_id,),
+        )
+
+        if exp_df is not None and not exp_df.empty:
+            exp_df["spend_date"] = pd.to_datetime(exp_df["spend_date"])
+            exp_df = exp_df.sort_values("spend_date")
+            exp_df["cumulative_spend"] = exp_df["daily_spend"].cumsum()
+            exp_df["remaining"] = total_budget - exp_df["cumulative_spend"]
+
+            # Anchor the first actual point at day-0 (full budget)
+            anchor_date = start_date if start_date and start_date <= exp_df["spend_date"].iloc[0] else exp_df["spend_date"].iloc[0]
+            anchor = pd.DataFrame({"date": [anchor_date], "remaining": [total_budget]})
+            actual_df = pd.concat(
+                [anchor, exp_df[["spend_date", "remaining"]].rename(columns={"spend_date": "date"})],
+                ignore_index=True,
+            )
+        else:
+            actual_df = pd.DataFrame(columns=["date", "remaining"])
+
+        # ── 3. Forecast line (extend actual trend to end_date) ──────────────────
+        forecast_df = pd.DataFrame(columns=["date", "remaining"])
+        if not actual_df.empty and end_date and len(actual_df) >= 2:
+            last_date = actual_df["date"].iloc[-1]
+            last_remaining = actual_df["remaining"].iloc[-1]
+
+            # Burn rate = total spent / days elapsed
+            days_elapsed = max((last_date - actual_df["date"].iloc[0]).days, 1)
+            total_spent = total_budget - last_remaining
+            daily_burn = total_spent / days_elapsed
+
+            if daily_burn > 0 and last_date < end_date:
+                forecast_range = pd.date_range(start=last_date, end=end_date, freq="D")
+                forecast_remaining = [
+                    max(last_remaining - daily_burn * i, 0)
+                    for i in range(len(forecast_range))
+                ]
+                forecast_df = pd.DataFrame({"date": forecast_range, "remaining": forecast_remaining})
+
+        # ── 4. Status signal ────────────────────────────────────────────────────
+        status = "No Data"
+        if not actual_df.empty and not ideal_df.empty:
+            # Find the ideal remaining at today's date
+            ideal_today = ideal_df[ideal_df["date"] <= today]
+            actual_today_val = actual_df["remaining"].iloc[-1]
+            if not ideal_today.empty:
+                ideal_today_val = ideal_today["remaining"].iloc[-1]
+                diff_pct = (actual_today_val - ideal_today_val) / total_budget * 100
+                if actual_today_val < 0:
+                    status = "Over Budget"
+                elif diff_pct < -10:   # actual spent more than ideal by >10% of budget
+                    status = "At Risk"
+                else:
+                    status = "On Track"
+
+        return {
+            "ideal_df": ideal_df,
+            "actual_df": actual_df,
+            "forecast_df": forecast_df,
+            "total_budget": total_budget,
+            "start_date": start_date,
+            "end_date": end_date,
+            "today": today,
+            "status": status,
+        }
+
+    except Exception as e:
+        logger.error(f"Error building burndown data for project {project_id}: {e}")
+        return None
