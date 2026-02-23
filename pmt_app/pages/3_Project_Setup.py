@@ -116,8 +116,21 @@ def project_setup_page():
                         st.error(f"Error creating project: {e}")
 
     with tab2:
-        st.subheader("Import from Excel Template")
-        st.info("Download the 'Project_Template.xlsx' and fill it out before uploading.")
+        # --- NEW: Download Section ---
+        template_path = os.path.join(os.getcwd(), 'templates', 'Project_Template.xlsx')
+        if os.path.exists(template_path):
+            with open(template_path, "rb") as f:
+                st.download_button(
+                    label="📥 Download Blank Project Template",
+                    data=f,
+                    file_name="Project_Template.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    help="Download the official blank Excel template to fill in project data."
+                )
+        else:
+            st.warning("⚠️ Template file not found in /templates folder.")
+
+        st.info("Fill out the downloaded template before uploading below.")
         
         uploaded_file = st.file_uploader("Upload Project Excel", type=["xlsx"])
         

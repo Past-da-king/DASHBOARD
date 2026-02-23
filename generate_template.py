@@ -9,7 +9,8 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from datetime import datetime, timedelta
 import os
 
-OUTPUT_DIR = r'c:\Users\past9\OneDrive\952 starage\Documents\DASHBOARD'
+OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # Styling Constants
 HEADER_FILL = PatternFill(start_color="2C5AA0", end_color="2C5AA0", fill_type="solid")  # Dark Blue
