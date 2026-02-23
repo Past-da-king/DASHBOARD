@@ -114,7 +114,7 @@ def main():
                         st.rerun()
                     else:
                         st.error("Invalid credentials")
-            st.info("Test Accounts:\n- admin / admin123\n- pm_user / pm123")
+
 
         with tab_signup:
             with st.container(border=True):
