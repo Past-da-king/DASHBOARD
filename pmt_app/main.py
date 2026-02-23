@@ -88,62 +88,54 @@ st.markdown(
 
 def main():
     auth.init_session()
-
-    # Apply Global Styles
     styles.global_css()
 
     if not auth.is_logged_in():
-        # --- AUTHENTICATION SCREEN ---
-        st.markdown(
-            "<h1 class='header'><i class='fas fa-shield-halved'></i> PROJECT MANAGEMENT PORTAL</h1>",
-            unsafe_allow_html=True,
-        )
+        # --- LOGIN PAGE WRAPPER ---
+        def show_login():
+            st.markdown(
+                "<h1 class='header'><i class='fas fa-shield-halved'></i> PROJECT MANAGEMENT PORTAL</h1>",
+                unsafe_allow_html=True,
+            )
 
-        tab_login, tab_signup = st.tabs(["Login", "Create Account"])
+            tab_login, tab_signup = st.tabs(["Login", "Create Account"])
 
-        with tab_login:
-            with st.container(border=True):
-                l_user = st.text_input("Username", key="l_user")
-                l_pass = st.text_input("Password", type="password", key="l_pass")
+            with tab_login:
+                with st.container(border=True):
+                    l_user = st.text_input("Username", key="l_user")
+                    l_pass = st.text_input("Password", type="password", key="l_pass")
 
-                if st.button(
-                    "Login to Dashboard", use_container_width=True, type="primary"
-                ):
-                    if auth.login(l_user, l_pass):
-                        st.success("Welcome back!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid credentials")
-
-
-        with tab_signup:
-            with st.container(border=True):
-                s_name = st.text_input("Full Name")
-                s_user = st.text_input("Username", help="Create a unique username")
-                s_pass = st.text_input("Password", type="password", key="s_pass")
-                s_role = st.selectbox(
-                    "Your Role", ["Project Manager", "Executive", "Field Recorder"]
-                )
-
-                role_map = {
-                    "Project Manager": "pm",
-                    "Executive": "executive",
-                    "Field Recorder": "recorder",
-                }
-
-                if st.button("Create Account", use_container_width=True):
-                    if s_name and s_user and s_pass:
-                        success, msg = auth.register(
-                            s_user, s_pass, s_name, role_map[s_role]
-                        )
-                        if success:
-                            st.success(
-                                f"Account created for {s_name}! You can now login."
-                            )
+                    if st.button("Login to Dashboard", use_container_width=True, type="primary"):
+                        if auth.login(l_user, l_pass):
+                            st.success("Welcome back!")
+                            st.rerun()
                         else:
-                            st.error(msg)
-                    else:
-                        st.warning("Please fill in all fields.")
+                            st.error("Invalid credentials")
+
+            with tab_signup:
+                with st.container(border=True):
+                    s_name = st.text_input("Full Name")
+                    s_user = st.text_input("Username", help="Create a unique username")
+                    s_pass = st.text_input("Password", type="password", key="s_pass")
+                    s_role = st.selectbox(
+                        "Your Role", ["Project Manager", "Executive", "Field Recorder"]
+                    )
+                    role_map = {"Project Manager": "pm", "Executive": "executive", "Field Recorder": "recorder"}
+
+                    if st.button("Create Account", use_container_width=True):
+                        if s_name and s_user and s_pass:
+                            success, msg = auth.register(s_user, s_pass, s_name, role_map[s_role])
+                            if success:
+                                st.success(f"Account created for {s_name}! You can now login.")
+                            else:
+                                st.error(msg)
+                        else:
+                            st.warning("Please fill in all fields.")
+
+        # Hide sidebar during login
+        login_page = st.Page(show_login, title="Login", icon=":material/login:")
+        pg = st.navigation([login_page], position="hidden")
+        pg.run()
 
     else:
         # --- DYNAMIC NAVIGATION (RBAC) ---
